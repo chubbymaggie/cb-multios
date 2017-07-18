@@ -10,11 +10,28 @@
 #endif
 #define NULL (0)
 
+#ifdef WIN
+# define __attribute__(x)
+# define __builtin_isnan _isnan
+# define __builtin_isinf(x) (! _finite(x))
+#endif
+
 typedef unsigned long cgc_size_t;
 typedef long cgc_ssize_t;
 
+// This is for challenges that define C++ operators and need to know std::size_t
+#if defined(APPLE) || defined(__LP64__) || defined(_LP64)
+# define STD_SIZE_T unsigned long
+#else
+# define STD_SIZE_T unsigned int
+#endif
+
 #ifndef PAGE_SIZE
 # define PAGE_SIZE 4096
+#endif
+
+#ifndef CGC_FLAG_PAGE_ADDRESS
+# define CGC_FLAG_PAGE_ADDRESS 0x4347C000
 #endif
 
 #ifndef offsetof
@@ -83,47 +100,69 @@ struct cgc_timeval {
 # define EPIPE CGC_EPIPE
 #endif
 
-void _terminate(unsigned int status) __attribute__((__noreturn__));
-int transmit(int fd, const void *buf, cgc_size_t count, cgc_size_t *tx_bytes);
-int receive(int fd, void *buf, cgc_size_t count, cgc_size_t *rx_bytes);
+#ifdef LIBCGC_IMPL
+// Maximum number of binaries running for one challenge
+# define MAX_NUM_CBS 10
+
+// STD(IN/OUT/ERR) + a socketpair for every binary
+// All fds used by the binaries should be less than this
+# define EXPECTED_MAX_FDS 3 + (2 * MAX_NUM_CBS)
+
+int cgc_check_timeout(const struct cgc_timeval *timeout) {
+    if (!timeout) {
+        return 0;
+    } else if (0 > timeout->tv_sec || 0 > timeout->tv_usec) {
+        return CGC_EINVAL;
+    } else {
+        return 0;
+    }
+}
+#endif
+
+void cgc__terminate(unsigned int status) __attribute__((__noreturn__));
+int cgc_transmit(int fd, const void *buf, cgc_size_t count, cgc_size_t *tx_bytes);
+int cgc_receive(int fd, void *buf, cgc_size_t count, cgc_size_t *rx_bytes);
 int cgc_fdwait(int nfds, cgc_fd_set *readfds, cgc_fd_set *writefds,
                const struct cgc_timeval *timeout, int *readyfds);
-int allocate(cgc_size_t length, int is_X, void **addr);
-int deallocate(void *addr, cgc_size_t length);
+int cgc_allocate(cgc_size_t length, int is_X, void **addr);
+int cgc_deallocate(void *addr, cgc_size_t length);
 int cgc_random(void *buf, cgc_size_t count, cgc_size_t *rnd_bytes);
 
-typedef struct { long _b[8]; } jmp_buf[1];
-int setjmp(jmp_buf) __attribute__((__returns_twice__));
-void longjmp(jmp_buf, int) __attribute__((__noreturn__));
+// All of the following functions are defined in asm (maths.S/maths_win.asm)
 
-float sinf(float); double sin(double); long double sinl(long double);
-float cosf(float); double cos(double); long double cosl(long double);
-float tanf(float); double tan(double); long double tanl(long double);
-float logf(float); double log(double); long double logl(long double);
-float rintf(float); double rint(double); long double rintl(long double);
-float sqrtf(float); double sqrt(double); long double sqrtl(long double);
-float fabsf(float); double fabs(double); long double fabsl(long double);
-float log2f(float); double log2(double); long double log2l(long double);
-float exp2f(float); double exp2(double); long double exp2l(long double);
-float expf(float); double exp(double); long double expl(long double);
-float log10f(float); double log10(double); long double log10l(long double);
-float powf(float, float);
-double pow(double, double);
-long double powl(long double, long double);
-float atan2f(float, float);
-double atan2(double, double);
-long double atan2l(long double, long double);
-float remainderf(float, float);
-double remainder(double, double);
-long double remainderl(long double, long double);
-float scalbnf(float, int);
-double scalbn(double, int);
-long double scalbnl(long double, int);
-float scalblnf(float, long int);
-double scalbln(double, long int);
-long double scalblnl(long double, long int);
-float significandf(float);
-double significand(double);
-long double significandl(long double);
+typedef struct { long _b[8]; } jmp_buf[1];
+extern int cgc_setjmp(jmp_buf) __attribute__((__returns_twice__));
+extern void cgc_longjmp(jmp_buf, int) __attribute__((__noreturn__));
+
+extern float cgc_sinf(float);   extern double cgc_sin(double);   extern long double cgc_sinl(long double);
+extern float cgc_cosf(float);   extern double cgc_cos(double);   extern long double cgc_cosl(long double);
+extern float cgc_tanf(float);   extern double cgc_tan(double);   extern long double cgc_tanl(long double);
+extern float cgc_logf(float);   extern double cgc_log(double);   extern long double cgc_logl(long double);
+extern float cgc_rintf(float);  extern double cgc_rint(double);  extern long double cgc_rintl(long double);
+extern float cgc_sqrtf(float);  extern double cgc_sqrt(double);  extern long double cgc_sqrtl(long double);
+extern float cgc_fabsf(float);  extern double cgc_fabs(double);  extern long double cgc_fabsl(long double);
+extern float cgc_log2f(float);  extern double cgc_log2(double);  extern long double cgc_log2l(long double);
+extern float cgc_exp2f(float);  extern double cgc_exp2(double);  extern long double cgc_exp2l(long double);
+extern float cgc_expf(float);   extern double cgc_exp(double);   extern long double cgc_expl(long double);
+extern float cgc_log10f(float); extern double cgc_log10(double); extern long double cgc_log10l(long double);
+
+extern float cgc_powf(float, float);
+extern double cgc_pow(double, double);
+extern long double cgc_powl(long double, long double);
+extern float cgc_atan2f(float, float);
+extern double cgc_atan2(double, double);
+extern long double cgc_atan2l(long double, long double);
+extern float cgc_remainderf(float, float);
+extern double cgc_remainder(double, double);
+extern long double cgc_remainderl(long double, long double);
+extern float cgc_scalbnf(float, int);
+extern double cgc_scalbn(double, int);
+extern long double cgc_scalbnl(long double, int);
+extern float cgc_scalblnf(float, long int);
+extern double cgc_scalbln(double, long int);
+extern long double cgc_scalblnl(long double, long int);
+extern float cgc_significandf(float);
+extern double cgc_significand(double);
+extern long double cgc_significandl(long double);
 
 #endif /* _LIBCGC_H */

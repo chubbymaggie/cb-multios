@@ -1,4 +1,5 @@
 # Created by https://www.gitignore.io/api/vim,sublimetext,xcode,osx,linux,windows,cmake,c++,c,python
+*.xlsx
 
 ### Vim ###
 [._]*.s[a-w][a-z]
@@ -247,8 +248,8 @@ target/
 
 .DS_Store
 
-cqe-challenges/*/bin/*
 .idea/
 _backup/
-cqe-challenges/
 test.cpp
+challenges/*/bin
+challenges/*/pov

@@ -1,6 +1,7 @@
 # DARPA Challenge Binaries on Linux and OS X
 
 [![Build Status](https://travis-ci.org/trailofbits/cb-multios.svg?branch=master)](https://travis-ci.org/trailofbits/cb-multios)
+[![Build status](https://ci.appveyor.com/api/projects/status/l17viygqmgb404oe/branch/master?svg=true)](https://ci.appveyor.com/project/dguido/cb-multios/branch/master)
 [![Slack Status](https://empireslacking.herokuapp.com/badge.svg)](https://empireslacking.herokuapp.com)
 
 The DARPA Challenge Binaries (CBs) are custom-made programs specifically designed to contain vulnerabilities that represent a wide variety of crashing software flaws. They are more than simple test cases, they approximate real software with enough complexity to stress both manual and automated vulnerability discovery. The CBs come with extensive functionality tests, triggers for introduced bugs, patches, and performance monitoring tools, enabling benchmarking of patching tools and bug mitigation strategies.
@@ -16,8 +17,8 @@ The CBs are the best available benchmark to evaluate program analysis tools. Usi
 
 ## Components
 
-### original-challenges 
-This directory contains all of the unmodified source code for the challenge binaries. Challenges that are not building or are not yet supported are in the `multibin` directory.
+### challenges
+This directory contains all of the source code for the challenge binaries. Challenges that are not building or are not yet supported are in the `disabled-challenges` directory.
 
 ### include
 This directory contains `libcgc`, which implements the syscalls to work on non-DECREE systems. `libcgc` currently works on OS X and Linux.
@@ -25,41 +26,34 @@ This directory contains `libcgc`, which implements the syscalls to work on non-D
 ### tools
 This folder contains Python scripts that help with modifying, building, and testing the original challenges.
 
-### cb_patcher.py
-This script will copy all challenges out of `original-challenges`, modify them as necessary, and place them in `cqe-challenges`. These modifications include: 
-
-* Deleting `libcgc.h` if it appears anywhere in the challenge source
-* Deleting any C++ definitions that are required for the cgc runtime
-* A set of find/replace definitions in `manual_patches.yaml`
-
-### makefiles.py
-This will parse the `Makefile` in each challenge folder and generate a `CMakeLists.txt` with the same variables and CFLAGS. This also adds the `-nostdinc` flag to all challenges, so that they have no access to the system libraries, and can only include their own libraries and `libcgc.h`.
-
-### cb_tester.py
+#### tester.py
 This is a helper script to test all challenges using `cb-test`. Results are summarized and can be output to an excel spreadsheet. More details in the [testing section](#testing) below.
 
 ## Building
 
 To build all challenges, run:
 
+###### OS X/Linux:
+
 ```bash
 $ ./build.sh
 ```
 
-To build individual challenges, list them as arguments to `build.sh`, for example:
+###### Windows:
 
-```bash
-$ ./build.sh CADET_00001 CROMU_00001
+```
+> powershell .\build.ps1
 ```
 
-These commands will build both the patched and unpatched binaries in the `bin` folder of the respective challenge (`cqe-challenges/[challenge]/bin/`).
+This command will build both the patched and unpatched binaries in `build/challenges/[challenge]/`.
 
 ## Testing
 
-The `cb_tester.py` utility is a wrapper around `cb-test` that can be used to test challenges and summarize results. The [`cb-test`](https://github.com/CyberGrandChallenge/cb-testing) tool is a testing utility created for the DARPA Cyber Grand Challenge to verify CBs are fully functional.
+The `tester.py` utility is a wrapper around `cb-test` that can be used to test challenges and summarize results. The [`cb-test`](https://github.com/CyberGrandChallenge/cb-testing) tool is a testing utility created for the DARPA Cyber Grand Challenge to verify CBs are fully functional.
 
-`cb-test` has been modified to use `socat` as the challenge server instead of `cb-server`. Further changes include:
+`cb-test` has been modified to work with a custom server. All changes include:
 
+* Starting `cb_simple_server.py` instead of `cb-server`
 * Always running the challenges on localhost
 * Skipping any checks that verify the file is a valid DECREE binary
 * Lessening sleeps and timeouts to allow tests to run at a reasonable rate
@@ -76,23 +70,48 @@ The `cb_tester.py` utility is a wrapper around `cb-test` that can be used to tes
 
 ### Example Usage
 
-The following will run tests against all challenges in `cqe-challenges` and save the results to `out.xlsx`:
+The following will run tests against all challenges in `challenges` and save the results to `out.xlsx`:
 
 ```bash
-$ ./cb_tester.py -a -o out.xlsx
+$ ./tester.py -a -o out.xlsx
 ```
 
 To run tests against only two challenges, do this:
 
 ```bash
-$ ./cb_tester.py -c CADET_00001 CROMU_00001
+$ ./tester.py -c CADET_00001 CROMU_00001
 ```
 
-This will test only POVs against all challenges and save the results:
+To test all POVs and save the results, run:
 
 ```bash
-$ ./cb_tester.py -a --povs -o out.xlsx
+$ ./tester.py -a --povs -o out.xlsx
 ```
+
+### Types of Tests
+
+All tests are a series of input strings and expected output for a challenge. There are two types of tests that are used:
+
+`POV (Proof of Vulnerability)`: These tests are intended to exploit any vulnerabilities that exist in a challenge. They are expected to pass with the patched versions of the challenges, and in many cases cause the unpatched version to crash.
+
+`POLL`: These tests are used to check that a challenge is functioning correctly, and are expected to pass with both the unpatched and patched versions of challenges.
+
+### Type 1 POV notice
+
+Verifying type 1 POVs relies on analyzing the core dump generated when a process crashes. They can be enabled with:
+
+###### OS X:
+```bash
+$ sudo sysctl -w kern.coredump=1
+```
+
+###### Linux:
+```bash
+$ ulimit -c unlimited
+```
+
+###### Windows:
+Merge `tools/win_enable_dumps.reg` into your registry. Note that this will disable the Windows Error Reporting dialog when a program crashes, so it's recommended that you do this in a VM if you want to keep that enabled.
 
 ## Current Status
 
@@ -106,7 +125,7 @@ Windows support is coming soon!
 
 The challenge binaries were written for a platform without a standard libc. Each binary re-implemented just the necessary libc features. Therefore, standard symbols were redefined. By using the `-nostdinc` flag during compilation, we were able to disable the use of standard library headers, and avoid rewriting a lot of challenge binary code.
 
-We use the CMake build system to enable portability across different compilers and operating systems. CMake works across a large matrix of compiler and operating system versions, while providing a consistent interface to check for dependencies and build software projects. 
+We use the CMake build system to enable portability across different compilers and operating systems. CMake works across a large matrix of compiler and operating system versions, while providing a consistent interface to check for dependencies and build software projects.
 
 We are working to make this repository easier to use for the evaluation of program analysis tools. If you have questions about the challenge binaries, please [join our Slack](https://empireslacking.herokuapp.com) and we'll be happy to answer them.
 
